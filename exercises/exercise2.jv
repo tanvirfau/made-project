@@ -1,0 +1,72 @@
+// Defining a single pipeline to process tree plantation data
+pipeline treesPipeline {
+
+    // Step 1: Extract data from the provided URL
+    treesExtractor -> treesInterpreter;
+
+    // Step 2: Interpret and process data in a pipeline
+    treesInterpreter
+        -> treesCSVInterpreter 
+        -> ExtraColumnRemover
+        -> treesTableInterpreter
+        -> treesLoader;
+
+    // Block to fetch data from the URL with retry option
+    block treesExtractor oftype HttpExtractor {
+        url: "https://opendata.rhein-kreis-neuss.de/api/v2/catalog/datasets/stadt-neuss-herbstpflanzung-2023/exports/csv";
+        retries: 3; // Retries 3 times in case of connection failure
+    }
+
+    // Block to interpret raw data as text
+    block treesInterpreter oftype TextFileInterpreter { }
+
+    // Block to remove any extra column, specifically "baumart_deutsch"
+    block ExtraColumnRemover oftype ColumnDeleter {
+        delete: [column E]; // Dropping the 'baumart_deutsch' column
+    }
+
+    // Regular expression constraint for `stadtteil` field to match "Vogelsang" area only
+    constraint RegEx_1 oftype RegexConstraint {
+        regex: /^Vogelsang/;
+    }
+
+    // Regular expression constraint for `id` field to match geo-coordinate pattern
+    constraint RegEx_2 oftype RegexConstraint {
+        regex: /\d{1,3}\.\d+,\s?\d{1,3}\.\d+/;
+    }
+
+    // Custom value type for matching "Vogelsang" pattern
+    valuetype VogelsangPattern oftype text {
+        constraints: [RegEx_1];
+    }
+
+    // Custom value type for matching geo-coordinate format
+    valuetype CoordinatePattern oftype text {
+        constraints: [RegEx_2];
+    }
+
+    // Block to parse CSV data with a specified delimiter
+    block treesCSVInterpreter oftype CSVInterpreter {
+        delimiter: ";";
+        enclosing: ''; // No enclosing character
+    }
+
+    // Block to define table structure, with custom value types for specific columns
+    block treesTableInterpreter oftype TableInterpreter {
+        header: true; // Specifies the presence of header row in CSV
+        columns: [
+            "lfd_nr" oftype integer,
+            "stadtteil" oftype VogelsangPattern, // Validates "stadtteil" with Vogelsang pattern
+            "standort" oftype text,
+            "baumart_botanisch" oftype text,
+            "id" oftype CoordinatePattern, // Ensures `id` follows geo-coordinate format
+            "baumfamilie" oftype text
+        ];
+    }
+
+    // Block to load the processed data into an SQLite database
+    block treesLoader oftype SQLiteLoader {
+        table: "trees"; // Table name in SQLite database
+        file: "./trees.sqlite"; // SQLite database file name
+    }
+}
