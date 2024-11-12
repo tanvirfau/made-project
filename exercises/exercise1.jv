@@ -5,6 +5,7 @@ pipeline AirportsPipelinee {
     -> AirportsCSVInterpreter
     -> AirportsTableInterpreter
     -> AirportsLoader;
+    
 
   block AirportsExtractor oftype HttpExtractor {
 

@@ -30,7 +30,7 @@ Obesity is a growing public health concern in the United States, with various fa
 
 1. Data Cleaning and Preprocessing: Load both datasets into a suitable analysis environment (e.g., Python with Pandas and GeoPandas)
 
-2. Data Integration and Mergin: Merge the datasets based on common identifiers (e.g., state or location codes)
+2. Data Integration and Merging: Merge the datasets based on common identifiers (e.g., state or location codes)
 
 3. Exploratory Data Analysis (EDA): Conduct an initial exploration to understand the distribution of obesity rates and socioeconomic factors across states.
 
