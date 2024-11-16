@@ -10,7 +10,7 @@ import os
 ssl._create_default_https_context = ssl._create_unverified_context
 
 # Ensure output directory exists
-output_dir = "./project/data"
+output_dir = "./data"
 os.makedirs(output_dir, exist_ok=True)
 
 def load_datasets():
