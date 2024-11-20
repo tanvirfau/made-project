@@ -26,7 +26,7 @@ pipeline WorldBankDataPipeline {
         sheetName: "Figure S5.1.2";
     }
 
-    // Select the specific data range
+    // Select the specific data as range
     block DataRangePicker oftype CellRangeSelector {
         select: range P2:S45;
     }
