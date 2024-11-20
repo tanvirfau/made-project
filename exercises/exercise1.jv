@@ -25,7 +25,7 @@ pipeline WorldAirportsPipeline {
   block WorldAirportsTableInterpreter oftype TableInterpreter {
     header: true; // Indicates that the CSV file contains a header row
     columns: [
-      "Lfd. Nummer" oftype integer, // Unique serial number for each airport
+      "Lfd. Nummer" oftype integer, // Unique serial number for airport
       "Name des Flughafens" oftype text, // Name of the airport
       "Ort" oftype text, // Location (city or town) of the airport
       "Land" oftype text, // Country where the airport is located
