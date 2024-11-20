@@ -39,7 +39,7 @@ pipeline WorldAirportsPipeline {
 
   // Block to load the processed data into an SQLite database
   block WorldAirportsLoader oftype SQLiteLoader {
-    table: "world_airports"; // Table name for storing airport data
+    table: "airports"; // Table name for storing airport data
     file: "./airports.sqlite"; // SQLite database file name
   } 
 }
