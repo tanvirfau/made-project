@@ -1,45 +1,97 @@
-// Defining the pipeline to process worldwide airport data
-pipeline WorldAirportsPipeline {
+pipeline WorldBankDataPipeline {
 
-  // Step 1: Extract data from the provided URL
-  WorldAirportsExtractor 
-    -> WorldAirportsTextInterpreter // Step 2: Interpret the data as raw text
-    -> WorldAirportsCSVInterpreter // Step 3: Parse the CSV file with the specified delimiter
-    -> WorldAirportsTableInterpreter // Step 4: Interpret and validate table structure
-    -> WorldAirportsLoader; // Step 5: Load the processed data into an SQLite database
+    // Data extraction and processing flow
+    DataRetriever
+        -> ExcelFileInterpreter
+        -> TargetSheetSelector
+        -> HeaderUpdater
+        -> DataRangePicker
+        -> GDPDataProcessor
+        -> GDPDataSaver;
 
-  // Block to fetch data from the given URL
-  block WorldAirportsExtractor oftype HttpExtractor {
-    url: "https://opendata.rhein-kreis-neuss.de/api/explore/v2.1/catalog/datasets/rhein-kreis-neuss-flughafen-weltweit/exports/csv?lang=en&timezone=Europe%2FBerlin&use_labels=true&delimiter=%3B";
-  }
+    DataRangePicker  
+        -> BondDataProcessor
+        -> BondDataSaver;
 
-  // Block to interpret the fetched data as raw text
-  block WorldAirportsTextInterpreter oftype TextFileInterpreter { }
+    // Download the dataset from the provided URL
+    block DataRetriever oftype HttpExtractor {
+        url: "https://thedocs.worldbank.org/en/doc/7d852628d96b9411d43e5d36d5dff941-0050062022/original/Graphs-Chapter-5-02082022.xlsx";
+    }
 
-  // Block to parse the CSV data with the specified delimiter
-  block WorldAirportsCSVInterpreter oftype CSVInterpreter {
-    delimiter: ";"; // Use semicolon as the delimiter for the CSV file
-  }
+    // Interpret the downloaded Excel file
+    block ExcelFileInterpreter oftype XLSXInterpreter {}
 
-  // Block to interpret and validate table structure
-  block WorldAirportsTableInterpreter oftype TableInterpreter {
-    header: true; // Indicates that the CSV file contains a header row
-    columns: [
-      "Lfd. Nummer" oftype integer, // Unique serial number for each airport
-      "Name des Flughafens" oftype text, // Name of the airport
-      "Ort" oftype text, // Location (city or town) of the airport
-      "Land" oftype text, // Country where the airport is located
-      "IATA" oftype text, // IATA code (3-character airport code)
-      "ICAO" oftype text, // ICAO code (4-character airport code)
-      "Latitude" oftype decimal, // Geographical latitude of the airport
-      "Longitude" oftype decimal, // Geographical longitude of the airport
-      "Altitude" oftype integer // Altitude of the airport (in feet)
-    ];
-  }
+    // Select the target sheet
+    block TargetSheetSelector oftype SheetPicker {
+        sheetName: "Figure S5.1.2";
+    }
 
-  // Block to load the processed data into an SQLite database
-  block WorldAirportsLoader oftype SQLiteLoader {
-    table: "world_airports"; // Table name for storing airport data
-    file: "./world_airports.sqlite"; // SQLite database file name
-  } 
+    // Select the specific data range
+    block DataRangePicker oftype CellRangeSelector {
+        select: range P2:S45;
+    }
+
+    // Update the header columns
+    block HeaderUpdater oftype CellWriter {
+        at: range P2:S2;  
+        write: [
+            "Country Code",
+            "Economy",
+            "GDP per Capita",
+            "Bond Issuance Share"
+        ];
+    }
+
+    // Process GDP-related data
+    block GDPDataProcessor oftype TableInterpreter {
+        header: true;
+        columns: [
+            "Country Code" oftype CountryCodeValidator,
+            "GDP per Capita" oftype GDPValueValidator
+        ];
+    }
+
+    // Process Bond Issuance Share data
+    block BondDataProcessor oftype TableInterpreter {
+        header: true;
+        columns: [
+            "Country Code" oftype CountryCodeValidator,
+            "Bond Issuance Share" oftype BondShareValidator
+        ];
+    }
+
+    // Save GDP data into SQLite
+    block GDPDataSaver oftype SQLiteLoader {
+        table: "gdpPerCapita";
+        file: "./country-stats.sqlite";
+    }
+
+    // Save Bond Issuance Share data into SQLite
+    block BondDataSaver oftype SQLiteLoader {
+        table: "bondIssuance";
+        file: "./country-stats.sqlite";
+    }
+}
+
+// Validation Rules
+constraint ValidCountryCode on CountryCodeValidator:
+    value matches /^[A-Za-z]{3}$/;
+
+constraint PositiveDecimal on GDPValueValidator:
+    value > 0;
+
+constraint RangeCheck on BondShareValidator:
+    value >= 0 and value <= 1;
+
+// Validation for Data Columns
+valuetype CountryCodeValidator oftype text {
+    constraints: [ValidCountryCode];
+}
+
+valuetype GDPValueValidator oftype decimal {
+    constraints: [PositiveDecimal];
+}
+
+valuetype BondShareValidator oftype decimal {
+    constraints: [RangeCheck];
 }
