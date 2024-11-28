@@ -6,6 +6,11 @@ import geopandas as gpd
 from urllib.request import urlretrieve
 import os
 
+# Set Pandas options to display all columns
+pd.set_option('display.max_columns', 7)  # Show all columns
+pd.set_option('display.max_rows', 5)  # Optional: Limit the number of rows to display
+pd.set_option('display.width', 1000)  # Adjust the display width to avoid line wrapping
+
 # Disable SSL verification (if needed)
 ssl._create_default_https_context = ssl._create_unverified_context
 
