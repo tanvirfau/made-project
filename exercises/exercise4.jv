@@ -1,81 +1,81 @@
 // Pipeline to process temperature data
 pipeline ProcessedTemperaturesPipeline {
-    tempHttpFetcher                 // Step 1: Fetch the zip file from the remote server
-    -> tempZipExtractor             // Step 2: Extract the zip archive
-    -> tempFileSelector             // Step 3: Select the relevant CSV file
-    -> tempTextInterpreter          // Step 4: Interpret the file as text
-    -> tempCSVReader                // Step 5: Read CSV data
-    -> renameColumnsToEnglish       // Step 6: Rename columns to English
-    -> removeExtraColumns           // Step 7: Keep only the required columns
-    -> defineTableStructure         // Step 8: Define the table structure and data types
-    -> temperatureToFahrenheit      // Step 9: Transform temperature to Fahrenheit
-    -> batteryTempToFahrenheit      // Step 10: Transform battery temperature to Fahrenheit
-    -> saveToDatabase;              // Step 11: Save data into SQLite database
+    fetchData                 // Step 1: Fetch the zip file from the remote server
+    -> extractZip             // Step 2: Extract the zip archive
+    -> selectCSVFile          // Step 3: Select the relevant CSV file
+    -> interpretAsText        // Step 4: Interpret the file as text
+    -> readCSV                // Step 5: Read CSV data
+    -> renameColumns          // Step 6: Rename columns from German to English
+    -> deleteExtraColumns     // Step 7: Remove columns to the right of "Geraet aktiv"
+    -> defineTable            // Step 8: Define the table structure with validations
+    -> transformTemperature   // Step 9: Transform "temperature" column to Fahrenheit
+    -> transformBatteryTemp   // Step 10: Transform "battery_temperature" column to Fahrenheit
+    -> saveToSQLite;          // Step 11: Save the processed data to SQLite database
 
-    // Step 1: Fetch the zip file
-    block tempHttpFetcher oftype HttpExtractor {
+    // Step 1: Fetch the zip file from the provided URL
+    block fetchData oftype HttpExtractor {
         url : "https://www.mowesta.com/data/measure/mowesta-dataset-20221107.zip";
     }
 
-    // Step 2: Extract the zip archive
-    block tempZipExtractor oftype ArchiveInterpreter {
+    // Step 2: Extract the downloaded zip archive
+    block extractZip oftype ArchiveInterpreter {
         archiveType : "zip";
     }
 
-    // Step 3: Select the relevant CSV file (data.csv)
-    block tempFileSelector oftype FilePicker {
+    // Step 3: Select the relevant CSV file from the extracted archive
+    block selectCSVFile oftype FilePicker {
         path : "/data.csv";
     }
 
-    // Step 4: Interpret the file as text
-    block tempTextInterpreter oftype TextFileInterpreter {
+    // Step 4: Interpret the selected file as a text file
+    block interpretAsText oftype TextFileInterpreter {
     }
 
-    // Step 5: Interpret the text file as a CSV
-    block tempCSVReader oftype CSVInterpreter {
+    // Step 5: Read the text file as a CSV using a semicolon as the delimiter
+    block readCSV oftype CSVInterpreter {
         delimiter: ";";
     }
 
-    // Step 6: Rename German column headers to English
-    block renameColumnsToEnglish oftype CellWriter {
+    // Step 6: Rename the German column headers to English
+    block renameColumns oftype CellWriter {
         at: range A1:F1;
         write : ["id", "producer", "model", "month", "temperature", "battery_temperature"];
     }
 
-    // Step 7: Keep only the required columns
-    block removeExtraColumns oftype ColumnDeleter {
-        delete : [column G, column H, column I, column J];  // Remove all unnecessary columns
+    // Step 7: Remove unnecessary columns to the right of "Geraet aktiv"
+    block deleteExtraColumns oftype ColumnDeleter {
+        delete: [column G, column H, column I, column J, column K];  // Remove all extra columns
     }
 
-    // Step 8: Define table structure with appropriate data types and constraints
-    block defineTableStructure oftype TableInterpreter {
+    // Step 8: Define the table structure with SQLite-compatible types and validations
+    block defineTable oftype TableInterpreter {
         header: false;
         columns: [
-            "id" oftype positiveInteger,              // ID must be greater than 0
-            "producer" oftype text,                  // Producer name
-            "model" oftype text,                     // Model name
+            "id" oftype positiveInteger,              // Must be a positive integer
+            "producer" oftype text,                  // Producer name as text
+            "model" oftype text,                     // Model name as text
             "month" oftype validMonth,               // Month must be between 1 and 12
-            "temperature" oftype decimal,            // Temperature data as decimal
+            "temperature" oftype decimal,            // Temperature as decimal
             "battery_temperature" oftype decimal     // Battery temperature as decimal
         ];
     }
 
-    // Step 9: Convert temperature to Fahrenheit
-    block temperatureToFahrenheit oftype TableTransformer {
+    // Step 9: Convert the "temperature" column from Celsius to Fahrenheit
+    block transformTemperature oftype TableTransformer {
         inputColumns : ["temperature"];
         outputColumn : "temperature";
         uses : celsiusToFahrenheit;
     }
 
-    // Step 10: Convert battery temperature to Fahrenheit
-    block batteryTempToFahrenheit oftype TableTransformer {
+    // Step 10: Convert the "battery_temperature" column from Celsius to Fahrenheit
+    block transformBatteryTemp oftype TableTransformer {
         inputColumns : ["battery_temperature"];
         outputColumn : "battery_temperature";
         uses : celsiusToFahrenheit;
     }
 
-    // Step 11: Save the transformed data into an SQLite database
-    block saveToDatabase oftype SQLiteLoader {
+    // Step 11: Save the processed data into an SQLite database
+    block saveToSQLite oftype SQLiteLoader {
         table: 'temperatures';                     // Table name
         file: 'temperatures.sqlite';               // SQLite database file
     }
@@ -84,7 +84,7 @@ pipeline ProcessedTemperaturesPipeline {
     transform celsiusToFahrenheit {
         from celsius oftype decimal;               // Input value in Celsius
         to fahrenheit oftype decimal;              // Output value in Fahrenheit
-        fahrenheit: (celsius * 9/5) + 32;          
+        fahrenheit: (celsius * 9/5) + 32;         
     }
 }
 
@@ -93,7 +93,7 @@ valuetype positiveInteger oftype integer {
     constraints: [greaterThanZero];
 }
 
-// Constraint to ensure value is greater than 0
+// Constraint to ensure "id" is greater than 0
 constraint greaterThanZero on integer :
     value > 0;
 
@@ -102,10 +102,10 @@ valuetype validMonth oftype integer {
     constraints: [monthRange];
 }
 
-// Constraint to ensure month values are between 1 and 12
+// Constraint to ensure months are between 1 and 12
 constraint monthRange oftype RangeConstraint {
-    lowerBound: 1;
-    lowerBoundInclusive: true;
-    upperBound: 12;
-    upperBoundInclusive: true;
+    lowerBound: 1;                       // Minimum value
+    lowerBoundInclusive: true;           // Inclusive lower bound
+    upperBound: 12;                      // Maximum value
+    upperBoundInclusive: true;           // Inclusive upper bound
 }
