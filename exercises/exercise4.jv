@@ -1,94 +1,106 @@
-// Pipeline to process temperature data
-pipeline ProcessedTemperaturesPipeline {
-    fetchData                 
-    -> extractZip             
-    -> selectCSVFile          
-    -> interpretAsText        
-    -> readCSV                
-    -> renameColumns          
-    -> deleteExtraColumns     
-    -> defineTable            
-    -> transformTemperature   
-    -> transformBatteryTemp   
-    -> saveToSQLite;
+// Pipeline
 
-    block fetchData oftype HttpExtractor {
+pipeline TemperaturesPipeline {
+    temperatureHttpExtractor 
+    -> temperatureZipInterpreter 
+    -> temperatureFilePicker 
+    -> temperatureTextFileInterpreter 
+    -> temperatureCSVInterpreter 
+    -> columnRenameGermantoEnglish 
+    -> columnRenameBatteryTemperature
+    -> columnDeleter 
+    -> temperatureTableInterpreter 
+    -> temperaturTransformer 
+    -> batteryTemperatureTransformer 
+    -> temperatureDataLoader;
+
+    block temperatureHttpExtractor oftype HttpExtractor {
         url : "https://www.mowesta.com/data/measure/mowesta-dataset-20221107.zip";
     }
 
-    block extractZip oftype ArchiveInterpreter {
+    
+    block temperatureZipInterpreter oftype ArchiveInterpreter {
         archiveType : "zip";
     }
 
-    block selectCSVFile oftype FilePicker {
+    
+    block temperatureFilePicker oftype FilePicker  {
         path : "/data.csv";
     }
 
-    block interpretAsText oftype TextFileInterpreter {}
+    block temperatureTextFileInterpreter oftype TextFileInterpreter {
+    }
 
-    block readCSV oftype CSVInterpreter {
+    block temperatureCSVInterpreter oftype CSVInterpreter {
         delimiter: ";";
     }
 
-    block renameColumns oftype CellWriter {
-        at: range A1:F1;
-        write : ["id", "producer", "model", "month", "temperature", "battery_temperature"];
+    block columnRenameGermantoEnglish oftype CellWriter {
+        at: range A1:E1;
+        write : ["id", "producer", "model", "month", "temperature"];
     }
 
-    block deleteExtraColumns oftype ColumnDeleter {
-        delete: [column G, column H, column I, column J, column K];
+    block columnRenameBatteryTemperature oftype CellWriter {
+        at: cell J1;
+        write : ["battery_temperature"];
     }
 
-    block defineTable oftype TableInterpreter {
+
+    block columnDeleter oftype ColumnDeleter {
+        delete : [column F, column G, column H, column I];
+    }
+
+
+    block temperatureTableInterpreter oftype TableInterpreter {
         header: false;
         columns: [
-            "id" oftype positiveInteger,
+            "id" oftype positiveValueType,
             "producer" oftype text,
             "model" oftype text,
-            "month" oftype validMonth,
+            "month" oftype months,
             "temperature" oftype decimal,
-            "battery_temperature" oftype decimal
+            "battery_temperature" oftype decimal,
         ];
     }
 
-    block transformTemperature oftype TableTransformer {
+    block temperaturTransformer oftype TableTransformer {
         inputColumns : ["temperature"];
         outputColumn : "temperature";
-        uses : celsiusToFahrenheit;
+        uses : celsius_to_fahr;
     }
 
-    block transformBatteryTemp oftype TableTransformer {
+    block batteryTemperatureTransformer oftype TableTransformer {
         inputColumns : ["battery_temperature"];
         outputColumn : "battery_temperature";
-        uses : celsiusToFahrenheit;
+        uses : celsius_to_fahr;
     }
 
-    block saveToSQLite oftype SQLiteLoader {
+    block temperatureDataLoader oftype SQLiteLoader {
         table: 'temperatures';
         file: 'temperatures.sqlite';
     }
 
-    transform celsiusToFahrenheit {
+    transform celsius_to_fahr {
         from celsius oftype decimal;
         to fahrenheit oftype decimal;
         fahrenheit: (celsius * 9/5) + 32;
-    }
+ }
 }
 
-valuetype positiveInteger oftype integer {
-    constraints: [greaterThanZero];
+valuetype positiveValueType oftype integer {
+    constraints : [ positiveValueConstraint ];
 }
 
-constraint greaterThanZero on integer :
-    value > 0;
+constraint positiveValueConstraint on integer :
+    value >= 0;
 
-valuetype validMonth oftype integer {
-    constraints: [monthRange];
-}
-
-constraint monthRange oftype RangeConstraint {
+constraint rangeMonthConst oftype RangeConstraint {
     lowerBound: 1;
     lowerBoundInclusive: true;
     upperBound: 12;
     upperBoundInclusive: true;
+}
+
+valuetype months oftype integer {
+    constraints: [rangeMonthConst];
 }
