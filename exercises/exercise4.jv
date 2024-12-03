@@ -83,8 +83,8 @@ pipeline ProcessedTemperaturesPipeline {
 
     // Save the transformed data into an SQLite database
     block tempDataSaver oftype SQLiteLoader {
-        table: 'temp_table';
-        file: 'processed_temperatures.sqlite';
+        table: 'temperatures';
+        file: 'temperatures.sqlite';
     }
 
     // Transformation function to convert Celsius to Fahrenheit
