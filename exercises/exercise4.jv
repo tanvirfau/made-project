@@ -1,57 +1,61 @@
-// Pipeline
+// Temperature Pipeline
 
-pipeline TemperaturesPipeline {
-    temperatureHttpExtractor 
-    -> temperatureZipInterpreter 
-    -> temperatureFilePicker 
-    -> temperatureTextFileInterpreter 
-    -> temperatureCSVInterpreter 
-    -> columnRenameGermantoEnglish 
-    -> columnRenameBatteryTemperature
-    -> columnDeleter 
-    -> temperatureTableInterpreter 
-    -> temperaturTransformer 
-    -> batteryTemperatureTransformer 
-    -> temperatureDataLoader;
+pipeline ProcessedTemperaturesPipeline  {
+    fetchData 
+    -> extractZip 
+    -> tempFilePicker 
+    -> interpretAsText
+    -> readCSV  
+    -> renameColumns 
+    -> transformBatteryTemp
+    -> deleteExtraColumns 
+    -> defineTable 
+    -> transformTemperature 
+    -> batteryTempTransformer 
+    -> saveToSQLite;
 
-    block temperatureHttpExtractor oftype HttpExtractor {
+    // Step 1: Fetch the zip file from the provided URL
+    block fetchData oftype HttpExtractor {
         url : "https://www.mowesta.com/data/measure/mowesta-dataset-20221107.zip";
     }
 
-    
-    block temperatureZipInterpreter oftype ArchiveInterpreter {
+    // Step 2: Extract the downloaded zip archive
+    block extractZip oftype ArchiveInterpreter {
         archiveType : "zip";
     }
 
-    
-    block temperatureFilePicker oftype FilePicker  {
+    // Step 3: Select the relevant CSV file from the extracted archive
+    block tempFilePicker oftype FilePicker  {
         path : "/data.csv";
     }
 
-    block temperatureTextFileInterpreter oftype TextFileInterpreter {
+    // Step 4: Interpret the selected file as a text file
+    block interpretAsText oftype TextFileInterpreter {
     }
 
-    block temperatureCSVInterpreter oftype CSVInterpreter {
+    // Step 5: Read the text file as a CSV using a semicolon as the delimiter
+    block readCSV  oftype CSVInterpreter {
         delimiter: ";";
     }
 
-    block columnRenameGermantoEnglish oftype CellWriter {
+   // Step 6: Rename the German column headers to English
+    block renameColumns oftype CellWriter {
         at: range A1:E1;
         write : ["id", "producer", "model", "month", "temperature"];
     }
 
-    block columnRenameBatteryTemperature oftype CellWriter {
+    block transformBatteryTemp oftype CellWriter {
         at: cell J1;
         write : ["battery_temperature"];
     }
 
-
-    block columnDeleter oftype ColumnDeleter {
+   // Step 7: Remove unnecessary columns to the right of "Geraet aktiv"
+    block deleteExtraColumns oftype ColumnDeleter {
         delete : [column F, column G, column H, column I];
     }
 
-
-    block temperatureTableInterpreter oftype TableInterpreter {
+    // Step 8: Define the table structure with SQLite-compatible types and validations
+    block defineTable oftype TableInterpreter {
         header: false;
         columns: [
             "id" oftype positiveValueType,
@@ -63,23 +67,27 @@ pipeline TemperaturesPipeline {
         ];
     }
 
-    block temperaturTransformer oftype TableTransformer {
+    // Step 9: Convert the "temperature" column from Celsius to Fahrenheit
+    block transformTemperature oftype TableTransformer {
         inputColumns : ["temperature"];
         outputColumn : "temperature";
         uses : celsius_to_fahr;
     }
 
-    block batteryTemperatureTransformer oftype TableTransformer {
+    // Step 10: Convert the "battery_temperature" column from Celsius to Fahrenheit
+    block batteryTempTransformer oftype TableTransformer {
         inputColumns : ["battery_temperature"];
         outputColumn : "battery_temperature";
         uses : celsius_to_fahr;
     }
 
-    block temperatureDataLoader oftype SQLiteLoader {
+    // Step 11: Save the processed data into an SQLite database
+    block saveToSQLite oftype SQLiteLoader {
         table: 'temperatures';
         file: 'temperatures.sqlite';
     }
 
+    // Transformation function to convert Celsius to Fahrenheit
     transform celsius_to_fahr {
         from celsius oftype decimal;
         to fahrenheit oftype decimal;
