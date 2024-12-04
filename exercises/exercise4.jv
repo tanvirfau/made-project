@@ -1,5 +1,4 @@
 // Temperature Pipeline
-
 pipeline ProcessedTemperaturesPipeline  {
     fetchData 
     -> extractZip 
